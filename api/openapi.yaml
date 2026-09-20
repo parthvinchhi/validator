@@ -1,0 +1,86 @@
+openapi: 3.0.3
+info:
+  title: Validator API
+  version: 1.0.0
+  description: >
+    Validates the format (and checksum where applicable) of Indian identifiers.
+    It does NOT verify that an identity exists or belongs to anyone.
+servers:
+  - url: http://localhost:8080
+security:
+  - ApiKey: []
+paths:
+  /healthz:
+    get:
+      security: []
+      summary: Health check
+      responses: { "200": { description: OK } }
+  /v1/validators:
+    get:
+      summary: List supported types
+      responses:
+        "200":
+          description: Supported types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  types: { type: array, items: { type: string } }
+  /v1/validate/{type}:
+    post:
+      summary: Validate one value
+      parameters:
+        - { name: type, in: path, required: true, schema: { type: string, enum: [name, mobile, email, pan, aadhaar, gstin, ifsc] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties: { value: { type: string } }
+      responses:
+        "200": { description: Validation result, content: { application/json: { schema: { $ref: "#/components/schemas/Result" } } } }
+        "400": { description: Malformed request }
+        "401": { description: Missing or invalid API key }
+        "404": { description: Unknown type }
+        "429": { description: Rate limited }
+  /v1/validate/batch:
+    post:
+      summary: Validate many values
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties: { type: { type: string }, value: { type: string } }
+      responses:
+        "200":
+          description: Results in request order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results: { type: array, items: { $ref: "#/components/schemas/Result" } }
+        "400": { description: Malformed request or batch too large }
+components:
+  securitySchemes:
+    ApiKey: { type: apiKey, in: header, name: X-API-Key }
+  schemas:
+    Result:
+      type: object
+      properties:
+        type: { type: string }
+        valid: { type: boolean }
+        code: { type: string, description: "EMPTY, INVALID_FORMAT, INVALID_CHECKSUM, INVALID_LENGTH, UNKNOWN_TYPE" }
+        message: { type: string }
+        normalized: { type: string }
